@@ -1,0 +1,26 @@
+TODO
+
+* Get a window up and running
+* Create an OpenGL context
+* Render a triangle
+* Render a model
+* Create a material system
+* Get input from the mouse and keyboard
+* Camera system
+* Matrix operations
+* Vector operations
+* Quaternion operations
+* Texture loading
+* Shader compilation
+* Audio playback
+* Network I/O
+* File I/O
+* Render state manipulation
+* OpenGL extensions
+* Font rendering
+* Decal application
+* GUI system
+* Game states
+* Game entities
+* Scripting
+
