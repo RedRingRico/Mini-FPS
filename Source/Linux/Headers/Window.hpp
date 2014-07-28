@@ -17,10 +17,10 @@ namespace MiniFPS
 
 		void Destroy( );
 
+		int GetWindowData( struct WINDOW_DATA *p_pWindowData );
+
 	private:
-		::Window	m_Window;
-		Display		*m_pDisplay;
-		GLXContext	m_GLXContext;
+		struct WINDOW_DATA	*m_pWindowData;
 	};
 }
 

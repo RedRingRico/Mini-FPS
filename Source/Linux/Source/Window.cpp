@@ -6,10 +6,15 @@
 
 namespace MiniFPS
 {
+	struct WINDOW_DATA
+	{
+		::Window	X11Window;
+		Display		*X11Display;
+		GLXContext	X11GLXContext;
+	};
+
 	Window::Window( ) :
-		m_Window( 0 ),
-		m_pDisplay( nullptr ),
-		m_GLXContext( 0 )
+		m_pWindowData( nullptr )
 	{
 	}
 
@@ -20,17 +25,25 @@ namespace MiniFPS
 
 	int Window::Create( const RECT &p_Rect, const RENDER_SURFACE &p_Surface )
 	{
-		// For now, just use the default window
-		m_pDisplay = XOpenDisplay( NULL );
+		if( m_pWindowData )
+		{
+			delete m_pWindowData;
+			m_pWindowData = nullptr;
+		}
 
-		if( !m_pDisplay )
+		m_pWindowData = new WINDOW_DATA( );
+
+		// For now, just use the default window
+		m_pWindowData->X11Display = XOpenDisplay( NULL );
+
+		if( !m_pWindowData->X11Display )
 		{
 			return 1;
 		}
 
 		int GLXMajor, GLXMinor;
 
-		if( !glXQueryVersion( m_pDisplay, &GLXMajor, &GLXMinor ) ||
+		if( !glXQueryVersion( m_pWindowData->X11Display, &GLXMajor, &GLXMinor ) ||
 			( ( GLXMajor == 1 ) && GLXMinor < 3 ) || ( GLXMajor < 1 ) )
 		{
 			return 1;
@@ -53,8 +66,8 @@ namespace MiniFPS
 		};
 
 		int FBCount;
-		GLXFBConfig *pFBConfigs = glXChooseFBConfig( m_pDisplay,
-			DefaultScreen( m_pDisplay ), VisualAttributes, &FBCount );
+		GLXFBConfig *pFBConfigs = glXChooseFBConfig( m_pWindowData->X11Display,
+			DefaultScreen( m_pWindowData->X11Display ), VisualAttributes, &FBCount );
 
 		if( !pFBConfigs )
 		{
@@ -66,31 +79,32 @@ namespace MiniFPS
 
 		XFree( pFBConfigs );
 
-		XVisualInfo *pVisualInfo = glXGetVisualFromFBConfig( m_pDisplay, FBC );
+		XVisualInfo *pVisualInfo = glXGetVisualFromFBConfig(
+			m_pWindowData->X11Display, FBC );
 
 		XSetWindowAttributes WindowAttribs;
 
-		WindowAttribs.colormap = XCreateColormap( m_pDisplay,
-			RootWindow( m_pDisplay, pVisualInfo->screen ), pVisualInfo->visual,
-			AllocNone );
+		WindowAttribs.colormap = XCreateColormap( m_pWindowData->X11Display,
+			RootWindow( m_pWindowData->X11Display, pVisualInfo->screen ),
+			pVisualInfo->visual, AllocNone );
 		WindowAttribs.background_pixmap = None;
 		WindowAttribs.border_pixel = 0;
 		WindowAttribs.event_mask = StructureNotifyMask;
 
-		m_Window = XCreateWindow( m_pDisplay,
-			RootWindow( m_pDisplay, pVisualInfo->screen ),
+		m_pWindowData->X11Window = XCreateWindow( m_pWindowData->X11Display,
+			RootWindow( m_pWindowData->X11Display, pVisualInfo->screen ),
 			p_Rect.X, p_Rect.Y, p_Rect.Width, p_Rect.Height, 0,
 			pVisualInfo->depth, InputOutput, pVisualInfo->visual,
 			CWBorderPixel | CWColormap | CWEventMask, &WindowAttribs );
 		
 		XFree( pVisualInfo );
 		
-		if( !m_Window )
+		if( !m_pWindowData->X11Window )
 		{
 			return 1;
 		}
 
-		XMapWindow( m_pDisplay, m_Window );
+		XMapWindow( m_pWindowData->X11Display, m_pWindowData->X11Window );
 
 		// Having the function be right here isn't the best option, this should
 		// be handled later via OpenGL extension handling
@@ -113,28 +127,30 @@ namespace MiniFPS
 			None
 		};
 
-		m_GLXContext = glXCreateContextAttribsARB( m_pDisplay,
-			FBC, 0, True, ContextAttribs );
+		m_pWindowData->X11GLXContext = glXCreateContextAttribsARB(
+			m_pWindowData->X11Display, FBC, 0, True, ContextAttribs );
 
-		if( !m_GLXContext )
+		if( !m_pWindowData->X11GLXContext )
 		{
 			return 1;
 		}
 
-		if( !glXIsDirect( m_pDisplay, m_GLXContext ) )
+		if( !glXIsDirect( m_pWindowData->X11Display,
+			m_pWindowData->X11GLXContext ) )
 		{
 			return 1;
 		}
 
-		glXMakeCurrent( m_pDisplay, m_Window, m_GLXContext );
+		glXMakeCurrent( m_pWindowData->X11Display, m_pWindowData->X11Window,
+			m_pWindowData->X11GLXContext );
 
 		glClearColor( 1.0f, 1.0f, 0.0f, 1.0f );
 		glClear( GL_COLOR_BUFFER_BIT );
 		// On the test machine, the buffers had to be swapped three times to
 		// show a difference in the render (unknown as to why)
-		glXSwapBuffers( m_pDisplay, m_Window );
-		glXSwapBuffers( m_pDisplay, m_Window );
-		glXSwapBuffers( m_pDisplay, m_Window );
+		glXSwapBuffers( m_pWindowData->X11Display, m_pWindowData->X11Window );
+		glXSwapBuffers( m_pWindowData->X11Display, m_pWindowData->X11Window );
+		glXSwapBuffers( m_pWindowData->X11Display, m_pWindowData->X11Window );
 
 		// There's no input loop, yet, so just sleep and exit
 		sleep( 1 );
@@ -144,16 +160,29 @@ namespace MiniFPS
 
 	void Window::Destroy( )
 	{
-		if( m_pDisplay && m_GLXContext )
+		if( m_pWindowData->X11Display && m_pWindowData->X11GLXContext )
 		{
-			glXMakeCurrent( m_pDisplay, 0, 0 );
-			glXDestroyContext( m_pDisplay, m_GLXContext );
+			glXMakeCurrent( m_pWindowData->X11Display, 0, 0 );
+			glXDestroyContext( m_pWindowData->X11Display,
+				m_pWindowData->X11GLXContext );
 		}
-		if( m_pDisplay && m_Window )
+		if( m_pWindowData->X11Display && m_pWindowData->X11Window )
 		{
-			XDestroyWindow( m_pDisplay, m_Window );
-			XCloseDisplay( m_pDisplay );
+			XDestroyWindow( m_pWindowData->X11Display,
+				m_pWindowData->X11Window );
+			XCloseDisplay( m_pWindowData->X11Display );
 		}
+
+		if( m_pWindowData )
+		{
+			delete m_pWindowData;
+			m_pWindowData = nullptr;
+		}
+	}
+
+	int Window::GetWindowData( struct WINDOW_DATA *p_pWindowData )
+	{
+		return 0;
 	}
 }
 
